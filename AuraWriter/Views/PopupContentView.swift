@@ -5,14 +5,20 @@ struct PopupContentView: View {
     @ObservedObject var preferencesService: PreferencesService
 
     let selectedText: String
-    let onRewrite: (Agent) -> Void
+    let onRewrite: (Agent, String) -> Void  // Updated signature to pass edited text
     let onCancel: () -> Void
 
     @State private var selectedAgent: Agent?
     @State private var isLoading = false
+    @State private var editableText: String = ""
+    @FocusState private var isTextFieldFocused: Bool
 
     private var resolvedAgent: Agent? {
         selectedAgent ?? getDefaultAgent()
+    }
+
+    private var isRewriteDisabled: Bool {
+        editableText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -35,21 +41,29 @@ struct PopupContentView: View {
 
             // Content
             VStack(spacing: 16) {
-                // Selected text preview
+                // Editable text input
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Selected Text")
+                    Text("Text to Rewrite")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    ScrollView {
-                        Text(selectedText)
+                    ZStack(alignment: .topLeading) {
+                        if editableText.isEmpty {
+                            Text("Enter text to translate...")
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 8)
+                        }
+
+                        TextEditor(text: $editableText)
                             .font(.body)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
+                            .frame(maxHeight: 500)
+                            .focused($isTextFieldFocused)
+                            .scrollContentBackground(.hidden)
+                            .background(Color(NSColor.textBackgroundColor))
+                            .cornerRadius(6)
                     }
-                    .frame(maxHeight: 500) // ~30 lines at default font size
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
+                    .frame(maxHeight: 500)
                 }
 
                 // Agent selection
@@ -67,6 +81,8 @@ struct PopupContentView: View {
                         if selectedAgent == nil {
                             selectedAgent = getDefaultAgent()
                         }
+                        editableText = selectedText
+                        isTextFieldFocused = true
                     }
                     .onChange(of: agentService.agents) { _ in
                         if selectedAgent == nil {
@@ -95,7 +111,7 @@ struct PopupContentView: View {
                             Button {
                                 isLoading = true
                                 if let agent = resolvedAgent {
-                                    onRewrite(agent)
+                                    onRewrite(agent, editableText)
                                 }
                             } label: {
                                 Text("Rewrite")
@@ -106,15 +122,14 @@ struct PopupContentView: View {
                                     .fill(Color.accentColor)
                             )
                             .keyboardShortcut(.defaultAction)
-                            .disabled(resolvedAgent == nil)
-                            .opacity(resolvedAgent == nil ? 0.5 : 1.0)
+                            .disabled(isRewriteDisabled)
+                            .opacity(isRewriteDisabled ? 0.5 : 1.0)
                         }
                     }
                 } else {
                     Text("No agents configured")
                         .foregroundColor(.secondary)
                     Button("Configure Agents") {
-                        // This will be handled by AppDelegate
                         onCancel()
                     }
                 }
@@ -124,7 +139,6 @@ struct PopupContentView: View {
         .frame(width: 800)
         .background(Color(NSColor.windowBackgroundColor))
         .cornerRadius(20)
-//        .shadow(radius: 20)
     }
 
     private func getDefaultAgent() -> Agent? {

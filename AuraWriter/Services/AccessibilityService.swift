@@ -32,7 +32,7 @@ class AccessibilityService {
         AXIsProcessTrustedWithOptions(options)
     }
 
-    func getSelectedText() throws -> (text: String, element: AXUIElement, range: CFRange) {
+    func getSelectedText() throws -> (text: String, element: AXUIElement?, range: CFRange?) {
         guard checkPermission() else {
             throw AccessibilityError.permissionDenied
         }
@@ -52,7 +52,8 @@ class AccessibilityService {
         let rangeResult = AXUIElementCopyAttributeValue(axElement, kAXSelectedTextRangeAttribute as CFString, &selectedTextRange)
 
         guard rangeResult == .success, let rangeValue = selectedTextRange else {
-            throw AccessibilityError.noSelectedText
+            // No selection - return empty text with nil element and range
+            return ("", nil, nil)
         }
 
         let axValue = unsafeBitCast(rangeValue, to: AXValue.self)
@@ -60,15 +61,16 @@ class AccessibilityService {
         var range = CFRange(location: 0, length: 0)
         AXValueGetValue(axValue, .cfRange, &range)
 
+        // If range length is 0, return empty text with nil element and range
         guard range.length > 0 else {
-            throw AccessibilityError.noSelectedText
+            return ("", nil, nil)
         }
 
         var selectedText: CFTypeRef?
         let textResult = AXUIElementCopyAttributeValue(axElement, kAXSelectedTextAttribute as CFString, &selectedText)
 
         guard textResult == .success, let text = selectedText as? String, !text.isEmpty else {
-            throw AccessibilityError.noSelectedText
+            return ("", nil, nil)
         }
 
         return (text, axElement, range)
