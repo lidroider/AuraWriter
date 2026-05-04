@@ -43,7 +43,9 @@ class AccessibilityService {
         let result = AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
 
         guard result == .success, let element = focusedElement else {
-            throw AccessibilityError.noFocusedElement
+            // No focused element - return empty text with nil element and range
+            // This allows the popup to show and copy result to clipboard
+            return ("", nil, nil)
         }
 
         let axElement = unsafeBitCast(element, to: AXUIElement.self)
