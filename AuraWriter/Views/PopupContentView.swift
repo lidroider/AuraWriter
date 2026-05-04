@@ -77,13 +77,6 @@ struct PopupContentView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    .onAppear {
-                        if selectedAgent == nil {
-                            selectedAgent = getDefaultAgent()
-                        }
-                        editableText = selectedText
-                        isTextFieldFocused = true
-                    }
                     .onChange(of: agentService.agents) { _ in
                         if selectedAgent == nil {
                             selectedAgent = getDefaultAgent()
@@ -139,6 +132,20 @@ struct PopupContentView: View {
         .frame(width: 800)
         .background(Color(NSColor.windowBackgroundColor))
         .cornerRadius(20)
+        .onAppear {
+            // Initialize editable text with selected text (or empty)
+            editableText = selectedText
+
+            // Set default agent if none selected
+            if selectedAgent == nil {
+                selectedAgent = getDefaultAgent()
+            }
+
+            // Auto-focus the text editor
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isTextFieldFocused = true
+            }
+        }
     }
 
     private func getDefaultAgent() -> Agent? {
