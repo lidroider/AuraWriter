@@ -74,11 +74,13 @@ See the [Development](#development) section below.
 
 ## Usage
 
-1. Select text in any application
+1. Select text in any application (optional - you can also input text manually)
 2. Press your keyboard shortcut (default: ⌘⇧A)
-3. Choose an agent from the popup (or use the pre-selected default)
-4. Click "Rewrite" or press Enter
-5. The selected text is replaced with the AI-generated version
+3. The dialog opens with your selected text (or empty if no selection)
+4. Edit the text if needed
+5. Choose an agent from the popup (or use the pre-selected default)
+6. Click "Rewrite" or press Enter
+7. The selected text is replaced with the AI-generated version (or copied to clipboard if no selection)
 
 ### Temporarily Disable Hotkey
 

@@ -197,12 +197,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         do {
-            let (_, element, currentRange) = try accessibilityService.getSelectedText()
+            let (_, element, _) = try accessibilityService.getSelectedText()
 
             // Convert NSRange to CFRange
             let cfRange = CFRange(location: state.replacedRange.location, length: state.replacedRange.length)
 
-            // Replace with original text
+            // Replace with original text - need non-optional element
+            guard let element = element else {
+                showError("Cannot revert: no target element available")
+                return
+            }
+
             try accessibilityService.replaceSelectedText(
                 element: element,
                 range: cfRange,
@@ -228,13 +233,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func showPopup(selectedText: String, element: AXUIElement, range: CFRange) {
+    private func showPopup(selectedText: String, element: AXUIElement?, range: CFRange?) {
         let contentView = PopupContentView(
             agentService: agentService,
             preferencesService: preferencesService,
             selectedText: selectedText,
-            onRewrite: { [weak self] agent in
-                self?.performRewrite(agent: agent, element: element, range: range, originalText: selectedText)
+            onRewrite: { [weak self] agent, editedText in
+                self?.performRewrite(agent: agent, element: element, range: range, originalText: editedText)
             },
             onCancel: { [weak self] in
                 self?.closePopup()
@@ -250,33 +255,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popupWindowController = nil
     }
 
-    private func performRewrite(agent: Agent, element: AXUIElement, range: CFRange, originalText: String) {
+    private func performRewrite(agent: Agent, element: AXUIElement?, range: CFRange?, originalText: String) {
         rewriteTask = Task {
             do {
                 let rewrittenText = try await backendService.rewriteText(agent: agent, selectedText: originalText)
 
                 await MainActor.run {
-                    do {
-                        // Close popup after successful API call
-                        closePopup()
+                    // Close popup after successful API call
+                    closePopup()
 
-                        // Focus the target app before replacing text
-                        accessibilityService.focusApplication(for: element)
+                    // If we have a target element, replace text in place
+                    if let element = element, let range = range {
+                        do {
+                            // Focus the target app before replacing text
+                            accessibilityService.focusApplication(for: element)
 
-                        try accessibilityService.replaceSelectedText(element: element, range: range, newText: rewrittenText)
+                            try accessibilityService.replaceSelectedText(element: element, range: range, newText: rewrittenText)
 
-                        // Store revert state
-                        if let app = NSWorkspace.shared.frontmostApplication {
-                            revertState = RevertState(
-                                originalText: originalText,
-                                replacedRange: NSRange(location: range.location, length: range.length),
-                                targetApp: app,
-                                timestamp: Date()
-                            )
+                            // Store revert state
+                            if let app = NSWorkspace.shared.frontmostApplication {
+                                revertState = RevertState(
+                                    originalText: originalText,
+                                    replacedRange: NSRange(location: range.location, length: range.length),
+                                    targetApp: app,
+                                    timestamp: Date()
+                                )
+                            }
+                        } catch {
+                            showError("Failed to replace text: \(error.localizedDescription)")
                         }
-                    } catch {
-                        closePopup()
-                        showError("Failed to replace text: \(error.localizedDescription)")
+                    } else {
+                        // No target element - copy to clipboard and notify
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(rewrittenText, forType: .string)
+
+                        showNotification(title: "AuraWriter", message: "Rewritten text copied to clipboard")
                     }
                 }
             } catch {
@@ -366,5 +380,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         alert.alertStyle = .critical
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func showNotification(title: String, message: String) {
+        let notification = NSUserNotification()
+        notification.title = title
+        notification.informativeText = message
+        notification.soundName = NSUserNotificationDefaultSoundName
+
+        NSUserNotificationCenter.default.deliver(notification)
     }
 }
