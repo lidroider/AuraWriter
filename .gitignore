@@ -76,3 +76,4 @@ build/
 docs/*
 !docs/superpowers/
 .claude
+.worktrees/
